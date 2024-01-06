@@ -56,8 +56,8 @@ const nil: id = std::ptr::null_mut();
 unsafe fn show_nsurl_in_file_manager(nsurl: id) {
     let ws: id = msg_send![class!(NSWorkspace), sharedWorkspace];
     let urls: id = msg_send![class!(NSArray), arrayWithObject:nsurl];
+    let urls: id = msg_send![urls, autorelease];
     let _: () = msg_send![ws, activateFileViewerSelectingURLs:urls];
-    let _: () = msg_send![urls, release];
 }
 
 #[cfg(all(not(target_os = "macos"), not(windows), feature = "gio"))]
@@ -109,7 +109,10 @@ unsafe fn gdbus_show_uri_in_file_manager(uri: *const std::ffi::c_char) {
 pub fn show_path_in_file_manager(path: impl AsRef<Path>) {
     #[cfg(windows)]
     unsafe {
-        use std::{borrow::Cow, path::{Component, Prefix}};
+        use std::{
+            borrow::Cow,
+            path::{Component, Prefix},
+        };
         use windows::{
             core::{Result, HSTRING},
             Win32::{System::Com::*, UI::Shell::*},
@@ -137,21 +140,19 @@ pub fn show_path_in_file_manager(path: impl AsRef<Path>) {
         // SHParseDisplayName seems to fail with UNC paths, so convert them back
         let mut components = path.components();
         let path = match components.next() {
-            Some(Component::Prefix(prefix)) => {
-                match prefix.kind() {
-                    Prefix::VerbatimUNC(server, share) => {
-                        Cow::Owned(Path::new("\\\\").join(Path::new(server).join(share).join(components)))
-                    }
-                    Prefix::VerbatimDisk(disk) => {
-                        let prefix = [disk, b':', b'\\'];
-                        let prefix = std::ffi::OsStr::from_encoded_bytes_unchecked(&prefix);
-                        Cow::Owned(Path::new(prefix).join(components))
-                    },
-                    Prefix::Verbatim(prefix) => {
-                        Cow::Owned(Path::new("\\\\").join(Path::new(prefix).join(components)))
-                    },
-                    _ => path,
+            Some(Component::Prefix(prefix)) => match prefix.kind() {
+                Prefix::VerbatimUNC(server, share) => Cow::Owned(
+                    Path::new("\\\\").join(Path::new(server).join(share).join(components)),
+                ),
+                Prefix::VerbatimDisk(disk) => {
+                    let prefix = [disk, b':', b'\\'];
+                    let prefix = std::ffi::OsStr::from_encoded_bytes_unchecked(&prefix);
+                    Cow::Owned(Path::new(prefix).join(components))
                 }
+                Prefix::Verbatim(prefix) => {
+                    Cow::Owned(Path::new("\\\\").join(Path::new(prefix).join(components)))
+                }
+                _ => path,
             },
             _ => path,
         };
@@ -173,16 +174,16 @@ pub fn show_path_in_file_manager(path: impl AsRef<Path>) {
     unsafe {
         let path = path.as_ref().as_os_str().as_encoded_bytes();
         let s: id = msg_send![class!(NSString), alloc];
-        let path: id = msg_send![
+        let s: id = msg_send![
             s,
             initWithBytes:path.as_ptr()
             length:path.len()
             encoding:4 as id
         ];
-        let url: id = msg_send![class!(NSURL), fileURLWithPath:path];
+        let s: id = msg_send![s, autorelease];
+        let url: id = msg_send![class!(NSURL), fileURLWithPath:s];
         if url != nil {
             show_nsurl_in_file_manager(url);
-            let _: () = msg_send![s, release];
         }
     }
 
@@ -259,16 +260,16 @@ pub fn show_uri_in_file_manager(uri: impl AsRef<str>) {
     unsafe {
         let uri = uri.as_ref();
         let s: id = msg_send![class!(NSString), alloc];
-        let url: id = msg_send![
+        let s: id = msg_send![
             s,
             initWithBytes:uri.as_ptr()
             length:uri.len()
             encoding:4 as id
         ];
-        let url: id = msg_send![class!(NSURL), URLWithString:url];
+        let s: id = msg_send![s, autorelease];
+        let url: id = msg_send![class!(NSURL), URLWithString:s];
         if url != nil {
             show_nsurl_in_file_manager(url);
-            let _: () = msg_send![s, release];
         }
     }
 
